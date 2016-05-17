@@ -187,3 +187,169 @@ class LKFChatViewCell: UITableViewCell {
     }
     
 }
+
+
+//额外功能 输入框
+
+class ChatInputTool : UIView {
+
+
+    var hasTxt : Bool? {
+        didSet {
+            senderTool.enabled = hasTxt ?? false
+            senderTool.backgroundColor = (hasTxt ?? false) ? UIColor(red:0.53, green:0.85, blue:0.41, alpha:1.00) : UIColor(red:0.40, green:0.40, blue:0.40, alpha:1.00)
+        }
+    }
+
+    var inputTool : UITextField = {
+        let v = UITextField()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.layer.cornerRadius = 4
+        v.layer.borderColor = UIColor.lightGrayColor().CGColor
+        v.layer.borderWidth = 1
+        v.font = UIFont.FontTextStyleSubheadline
+        v.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 20))
+        v.leftViewMode = .Always
+        return v
+    }()
+
+    var senderTool : UIButton = {
+        let v = UIButton()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.backgroundColor = UIColor(red:0.40, green:0.40, blue:0.40, alpha:1.00)
+        v.layer.cornerRadius = 4
+        v.layer.masksToBounds = true
+        v.setTitle("发送", forState: .Normal)
+        v.titleLabel?.font = UIFont.FontTextStyleSubheadline
+        v.titleLabel?.textAlignment = .Center
+        v.enabled = false
+        return v
+    }()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        followInit()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        followInit()
+    }
+    var vd : [String : AnyObject] = [String : AnyObject]()
+    func followInit(){
+        self.addSubview(inputTool)
+        self.addSubview(senderTool)
+        vd = ["inputTool" : inputTool , "senderTool" : senderTool]
+        self.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("|-10-[inputTool]-20-[senderTool(70)]-10-|", options: [], metrics: nil, views: vd))
+        self.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|-[inputTool]-|", options: [], metrics: nil, views: vd))
+        self.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|-[senderTool]-|", options: [], metrics: nil, views: vd))
+        
+    }
+}
+
+
+
+extension UITableView {
+    // 输入文字自动滚动至底部
+    func scrollToBottom (handler : (()->())? = nil) {
+        let sections = self.numberOfSections
+        let rows = self.numberOfRowsInSection(sections - 1)
+        let sections_rows = NSIndexPath(forRow: rows - 1, inSection: sections - 1)
+        self.scrollToRowAtIndexPath(sections_rows, atScrollPosition: .Bottom, animated: true)
+
+        if let d = handler {
+            d()
+        }
+    }
+    
+}
+
+// 键盘控制
+class AtuoKeyboardManager: NSObject {
+
+    var view: UIView
+    var inputView: UIView
+    var ifNotRootViewDistance : CGFloat
+    var cover: UIView?
+    var inputVisiableHeight : CGFloat
+
+    init(translateView: UIView, inputView: UIView , ifNotRootViewDistance : CGFloat = 0 , inputVisiableHeight : CGFloat = 0) {
+        self.view = translateView
+        self.inputView = inputView
+        self.ifNotRootViewDistance = ifNotRootViewDistance
+        self.inputVisiableHeight = inputVisiableHeight
+        super.init()
+    }
+
+    func addObserver() {
+        NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(keyboardShow(_:)), name: UIKeyboardWillShowNotification, object: nil)
+        NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(keyboardHide(_:)), name: UIKeyboardWillHideNotification, object: nil)
+    }
+
+    func removeObserver() {
+        NSNotificationCenter.defaultCenter().removeObserver(self, name: UIKeyboardWillShowNotification, object: nil)
+
+        NSNotificationCenter.defaultCenter().removeObserver(self, name: UIKeyboardWillHideNotification, object: nil)
+    }
+
+
+    func keyboardShow(notification: NSNotification) {
+        let userInfo = notification.userInfo! as NSDictionary
+        let keyboardHeight = userInfo.objectForKey(UIKeyboardFrameEndUserInfoKey)?.CGRectValue().size.height ?? 0
+        let duration: NSTimeInterval = userInfo.objectForKey(UIKeyboardAnimationCurveUserInfoKey)?.doubleValue ?? 0
+        let options = UIViewAnimationOptions.CurveEaseInOut
+        let delta = keyboardHeight - (BasicValue.screenHeight - self.inputView.frame.maxY) + ifNotRootViewDistance
+        if delta > 0 {
+            UIView.animateWithDuration(duration, delay: 0, options:options, animations: { [weak self] _ in
+                if let strongSelf = self {
+                    strongSelf.view.transform = CGAffineTransformMakeTranslation(0, -delta - BasicValue.offSet)
+                }
+            }) { _ in
+            }
+
+        }
+        addCover()
+
+    }
+    func keyboardHide(notification: NSNotification) {
+        let userInfo = notification.userInfo! as NSDictionary
+        let duration: NSTimeInterval = userInfo.objectForKey(UIKeyboardAnimationCurveUserInfoKey)?.doubleValue ?? 0
+        let options = UIViewAnimationOptions.CurveEaseInOut
+        UIView.animateWithDuration(duration, delay: 0, options: options, animations: { [weak self] _ in
+            if let strongSelf = self {
+                strongSelf.view.transform = CGAffineTransformIdentity
+            }
+        }){ _ in
+        }
+        self.removeObserver()
+
+    }
+
+    func addCover() {
+        cover = UIView(frame: CGRect(x: 0, y: 0, width: self.view.bounds.width, height: self.view.bounds.height - inputVisiableHeight))
+        self.view.addSubview(cover!)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(coverTapped))
+        cover!.addGestureRecognizer(tap)
+    }
+
+    func removeCover() {
+        cover?.removeFromSuperview()
+        cover = nil
+    }
+
+    func coverTapped() {
+        self.view.endEditing(true)
+        removeCover()
+    }
+
+    struct BasicValue {
+
+        static var offSet: CGFloat = 1.0
+        static let screenHeight = UIScreen.mainScreen().bounds.size.height
+    }
+    
+}
+
+
+
+
