@@ -99,6 +99,10 @@ extension ViewController {
 
         return true
     }
+
+    func textFieldShouldReturn(textField: UITextField) -> Bool {
+        return true
+    }
 }
 
 
